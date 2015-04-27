@@ -24,13 +24,13 @@ public class QueryCompletionRequestHandler extends RequestHandlerBase {
 			results = new NamedList<String>();
 			results.add("term", q + "AND ");
 			results.add("term", q + "OR ");
+			results.add("term", q + "NOT ");
 		}
 		else {
 			String[] twoPartString = getStringParts(q);
 			results = addQuerySuggestionsToRequest(fields, index, twoPartString);
 		}
 		solrQueryResponse.add("auto_complete", results);
-		//solrQueryResponse.add("fields", getFieldsInNamedList(fields));
 	}
 
 	private NamedList<String> addQuerySuggestionsToRequest(Collection<String> fields, IndexSchema index, String[] twoPartString) {
