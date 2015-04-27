@@ -22,36 +22,33 @@ public class QueryCompletionRequestHandler extends RequestHandlerBase {
 		String q = params.get(CommonParams.Q);
 		if (q.endsWith(" ")){
 			results = new NamedList<String>();
-			results.add("0", q + "AND ");
-			results.add("1", q + "OR ");
+			results.add("term", q + "AND ");
+			results.add("term", q + "OR ");
 		}
 		else {
 			String[] twoPartString = getStringParts(q);
-
 			results = addQuerySuggestionsToRequest(fields, index, twoPartString);
-			solrQueryResponse.add("auto_complete", results);
-			//solrQueryResponse.add("fields", getFieldsInNamedList(fields));
 		}
+		solrQueryResponse.add("auto_complete", results);
+		//solrQueryResponse.add("fields", getFieldsInNamedList(fields));
 	}
 
 	private NamedList<String> addQuerySuggestionsToRequest(Collection<String> fields, IndexSchema index, String[] twoPartString) {
-		int count = 0;
 		NamedList<String> results = new NamedList<String>();
 		for (String field : fields){
 			if ((field.length() > twoPartString[1].length()) && (field.substring(0, twoPartString[1].length()).equals(twoPartString[1]))){
-				results.add("" + count++, twoPartString[0] + " " + field + ":()");
-				count = addRangeIfRangeField(index, twoPartString, count, results, field);
+				results.add("term", twoPartString[0] + " " + field + ":()");
+				addRangeIfRangeField(index, twoPartString, results, field);
 			}
 		}
 		return results;
 	}
 
-	private int addRangeIfRangeField(IndexSchema index, String[] twoPartString, int count, NamedList<String> results,
+	private void addRangeIfRangeField(IndexSchema index, String[] twoPartString, NamedList<String> results,
 			String field) {
 		if(index.getFieldType(field).getTypeName().equals("int") || index.getFieldType(field).getTypeName().equals("date")){
-			results.add("" + count++, twoPartString[0] + " " + field + ":[ TO ]");
+			results.add("term", twoPartString[0] + " " + field + ":[ TO ]");
 		}
-		return count;
 	}
 
 	@Override public String getDescription() {
