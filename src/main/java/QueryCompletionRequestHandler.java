@@ -33,6 +33,9 @@ public class QueryCompletionRequestHandler extends RequestHandlerBase {
 		ArrayList<SimpleOrderedMap<String>> results = new ArrayList<SimpleOrderedMap<String>>();
 		String q = params.get(CommonParams.Q);
 		if (linkWords(q)){
+			if (q.lastIndexOf('(') > q.lastIndexOf(')')) {
+				results.add(wrappInMap(q.substring(0, q.length() - 1) + ") "));
+			}
 			results.add(wrappInMap(q + "AND "));
 			results.add(wrappInMap(q + "OR "));
 			results.add(wrappInMap(q + "NOT "));
@@ -43,6 +46,21 @@ public class QueryCompletionRequestHandler extends RequestHandlerBase {
 		else {
 			String[] twoPartString = getStringParts(q);
 			results = addQuerySuggestionsToRequest(fields, index, twoPartString);
+			if (results.size() < 10){
+				String end;
+				if (q.lastIndexOf(' ') == -1 && q.lastIndexOf(')') != q.length()-1){
+					end = q;
+					q = "";
+					q = q + "text:(" + end;
+					results.addAll(inFieldAutoCompletion(q));
+				}
+				else if (q.lastIndexOf(' ') != -1 && q.lastIndexOf(' ') > q.lastIndexOf(')')){
+					end = q.substring(q.lastIndexOf(' '), q.length());
+					q = q.substring(0, q.lastIndexOf(' '));
+					q = q + " text:(" + end.substring(1, end.length());
+					results.addAll(inFieldAutoCompletion(q));
+				}
+			}
 		}
 		solrQueryResponse.add("auto_complete", results);
 	}
@@ -78,12 +96,21 @@ public class QueryCompletionRequestHandler extends RequestHandlerBase {
 			String fieldSearch = q.substring(q.lastIndexOf('(') + 1);
 			q = q.substring(0, q.lastIndexOf('('));
 			String[] twoPartString = getStringParts(fieldSearch);
-			QueryResponse suggested = getSuggestions(field, twoPartString[1]);
-
-			List<SpellCheckResponse.Suggestion> suggestions = suggested.getSpellCheckResponse().getSuggestions();
-			for (SpellCheckResponse.Suggestion suggestion : suggestions) {
-				for (String alternative : suggestion.getAlternatives()) {
-					results.add(wrappInMap(q + "(" + (twoPartString[0] + " " + alternative).trim() + " "));
+			if (twoPartString[1].length() > 0) {
+				QueryResponse suggested = getSuggestions(field, twoPartString[1]);
+				if (suggested.getSpellCheckResponse() != null) {
+					List<SpellCheckResponse.Suggestion> suggestions = suggested.getSpellCheckResponse()
+							.getSuggestions();
+					for (SpellCheckResponse.Suggestion suggestion : suggestions) {
+						for (String alternative : suggestion.getAlternatives()) {
+							if (alternative.contains(" ")){
+								results.add(wrappInMap(q + "(" + (twoPartString[0] + " \"" + alternative).trim() + "\" "));
+							}
+							else {
+								results.add(wrappInMap(q + "(" + (twoPartString[0] + " " + alternative).trim() + " "));
+							}
+						}
+					}
 				}
 			}
 		}
@@ -101,7 +128,7 @@ public class QueryCompletionRequestHandler extends RequestHandlerBase {
 	private ArrayList<SimpleOrderedMap<String>> addQuerySuggestionsToRequest(Collection<String> fields, IndexSchema index, String[] twoPartString) {
 		ArrayList<SimpleOrderedMap<String>> results = new ArrayList<SimpleOrderedMap<String>>();
 		for (String field : fields){
-			if ((field.length() >= twoPartString[1].length()) && (field.substring(0, twoPartString[1].length()).equals(twoPartString[1]))){
+			if (((field.length() >= twoPartString[1].length()) && (field.substring(0, twoPartString[1].length()).equals(twoPartString[1]))) || twoPartString[1].length() == 0){
 				results.add(wrappInMap(twoPartString[0] + " " + field + ":("));
 				addRangeIfRangeField(index, twoPartString, results, field);
 			}
@@ -137,7 +164,7 @@ public class QueryCompletionRequestHandler extends RequestHandlerBase {
 	}
 
 	private boolean isInFieldAutoComplete(String q){
-		if (q.endsWith(")") || q.lastIndexOf('(') > q.lastIndexOf(')')){
+		if (q.lastIndexOf('(') > q.lastIndexOf(')')){
 			return true;
 		}
 		return false;
